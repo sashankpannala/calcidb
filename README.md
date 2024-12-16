@@ -1,100 +1,107 @@
-## CalciDB
+CalciDB is a Python-based calculator application powered by LLM function calling and SQLite for database integration. It supports basic arithmetic operations, tracks persistent calculation history, and allows for seamless interaction through the command line or Docker.
 
-CalciDB is a database management system built with Python, SQLAlchemy, and AI integration. It aims to simplify user interaction with a SQLite database by providing seamless operations for data modeling, initialization, querying, and intelligent insights.
+Features
+LLM-Powered Calculations: Uses LLM API calls to dynamically process arithmetic operations. Supports flexible natural language input (e.g., "What is the sum of 5 and 3?").
+Persistent Calculation History: Saves all calculations and their results to a SQLite database (calculation_history table). Allows users to view the history interactively.
+User Management: Seeds the database with sample user data.
+Docker Support: Easy setup and deployment using Docker and Docker Compose.
+Requirements
+Python 3.8+
+SQLite
+Docker (optional)
+Setup Instructions
+1. Clone the Repository
+bash
+Copy code
+git clone https://github.com/sashankpannala/calcidb.git  
+cd calcidb  
+2. Create a Virtual Environment
+bash
+Copy code
+python3 -m venv venv  
+source venv/bin/activate  # On Windows: venv\Scripts\activate  
+3. Install Dependencies
+bash
+Copy code
+pip install -r requirements.txt  
+4. Set Up Environment Variables
+Create a .env file in the project root with the following content:
 
-## Features
+env
+Copy code
+API_KEY=<your_llm_api_key>  
+Replace <your_llm_api_key> with the actual API key for the LLM service.
 
-- **Database Modeling**: Leverages SQLAlchemy for Object-Relational Mapping (ORM).
-- **Data Seeding**: Includes scripts to initialize the database with seed data.
-- **AI Integration**: Utilizes artificial intelligence for advanced analytics and recommendations.
-- **Modular Design**: Separate files for models, AI logic, and main application logic.
-- **Scalable**: Designed to integrate with other databases like PostgreSQL if needed.
+Usage
+Run the Application
+bash
+Copy code
+python main.py  
+Interactive Mode Commands
+Perform a Calculation: Enter natural language instructions like:
 
-## Getting Started
+sql
+Copy code
+Add 5 and 3  
+Expected output:
 
-Follow these steps to set up and run the project.
+python
+Copy code
+Result: The sum of 5 and 3 is 8.  
+View Calculation History: Enter history to display all saved calculations.
 
-### Prerequisites
+python
+Copy code
+Calculation History:  
+1. Add 5 and 3 -> The sum of 5 and 3 is 8.  
+Exit the Application: Enter exit.
 
-Ensure you have the following installed on your system:
+Run with Docker
+Build the Docker Image
+bash
+Copy code
+docker build -t calcidb .  
+Run the Application in a Container
+Interactive Mode:
 
-- Python 3.8+
-- `pip` (Python package manager)
+bash
+Copy code
+docker run -it calcidb  
+Environment Variable Input:
 
-### Installation
+bash
+Copy code
+docker run -e CALC_PROMPT="Add 10 and 20" calcidb  
+Database Structure
+Users Table (users)
+Column Name	Data Type	Description
+id	Integer	Primary key
+first_name	String	User's first name
+last_name	String	User's last name
+email	String	Unique email
+username	String	Unique username
+Calculation History Table (calculation_history)
+Column Name	Data Type	Description
+id	Integer	Primary key
+calculation	String	User input (e.g., "Add 5 and 3")
+result	String	Result of the calculation
+Testing
+Run Unit Tests
+This project includes unit tests for the arithmetic functions, LLM function calls, and database history.
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/sashankpannala/calcidb.git
-   cd calcidb
-   ```
+bash
+Copy code
+pytest  
+Expected output:
 
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+plaintext
+Copy code
+=========================testsessionstarts=================================================  
+platform linux -- Python 3.10.12, pytest-8.3.3  collected    6items                                                                                                       
+test_main.py ......                                                                                                   [100%]  
+================================================== 6 passed in 0.45s =================================================  
+Contributing
+Contributions are welcome! Please create a pull request or open an issue for any feature requests or bug reports.
 
-3. Initialize the database:
-   ```bash
-   python seed_users.py
-   ```
-
-4. Run the application:
-   ```bash
-   python main.py
-   ```
-
-## Usage
-
-- Run the application using `python main.py`.
-- The database (`app.db`) will be created in the project directory if it doesn't exist.
-- Use `seed_users.py` to populate the database with initial user data.
-- Leverage the AI module for insights and recommendations.
-
-### Example
-
-Here’s an example of how to interact with the database and AI features:
-
-1. Run `main.py` to start the application.
-2. Query or manipulate data through the provided interface or API.
-3. Use the AI feature to generate insights by providing relevant inputs.
-
-## Project Structure
-
-```
-calcidb/
-├── main.py           # Main application logic
-├── models.py         # Database models (SQLAlchemy ORM)
-├── seed_users.py     # Script to seed database with initial data
-├── ai_module.py      # AI logic and functionality
-├── app.db            # SQLite database (auto-generated)
-├── requirements.txt  # Python dependencies
-└── README.md         # Project documentation
-```
-
-## Future Improvements
-
-- Add support for more database backends (e.g., PostgreSQL, MySQL).
-- Expand AI capabilities for predictive analytics and natural language processing.
-- Implement unit tests for core functionality.
-- Provide a web-based or command-line interface for managing the database and AI features.
-- Add Docker support for streamlined deployment.
-
-## Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository.
-2. Create a feature branch: `git checkout -b feature-name`.
-3. Commit your changes: `git commit -m 'Add feature-name'`.
-4. Push to the branch: `git push origin feature-name`.
-5. Open a Pull Request.
-
-## License
-
-This project is licensed under the MIT License. See `LICENSE` for more details.
-
----
-
-**Author**: Sashank Pannala
-
+License
+This project is licensed under the MIT License. See the LICENSE file for details.
