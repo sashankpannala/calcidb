@@ -66,18 +66,20 @@ def call_llm(prompt):
             try:
                 function_name = function_calls[0]['function']['name']
                 arguments = json.loads(function_calls[0]['function']['arguments'])
-            except (KeyError, json.JSONDecodeError):
+                a = float(arguments['a'])
+                b = float(arguments['b'])
+            except (KeyError, json.JSONDecodeError, ValueError, TypeError):
                 return "Error: Invalid arguments or function name in API response."
 
             # Execute the corresponding local function
             if function_name == "add":
-                return f"The sum of {arguments['a']} and {arguments['b']} is {add(arguments['a'], arguments['b'])}."
+                return f"The sum of {a} and {b} is {add(a, b)}."
             elif function_name == "subtract":
-                return f"The difference between {arguments['a']} and {arguments['b']} is {subtract(arguments['a'], arguments['b'])}."
+                return f"The difference between {a} and {b} is {subtract(a, b)}."
             elif function_name == "multiply":
-                return f"The product of {arguments['a']} and {arguments['b']} is {multiply(arguments['a'], arguments['b'])}."
+                return f"The product of {a} and {b} is {multiply(a, b)}."
             elif function_name == "divide":
-                return f"The result of dividing {arguments['a']} by {arguments['b']} is {divide(arguments['a'], arguments['b'])}."
+                return f"The result of dividing {a} by {b} is {divide(a, b)}."
             else:
                 return f"Error: Function {function_name} not implemented."
 
