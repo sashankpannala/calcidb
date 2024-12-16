@@ -1,7 +1,8 @@
 import os
+import sys
 import json
-from dotenv import load_dotenv
 import requests
+from dotenv import load_dotenv
 from models import User, Session
 from faker import Faker
 
@@ -56,7 +57,7 @@ def call_llm(prompt):
 
     try:
         response = requests.post(API_ENDPOINT, headers=headers, json=payload)
-        response.raise_for_status()  # Raise error for bad HTTP status codes
+        response.raise_for_status()
         data = response.json()
 
         # Extract function and arguments
@@ -83,23 +84,49 @@ def call_llm(prompt):
         return "Error: No valid function call in response."
 
     except requests.exceptions.RequestException as e:
-        print(f"Error calling Groq API: {e}")
-        return None
+        return f"Error calling Groq API: {e}"
 
-# Main loop for LLM-based calculator
+# Main function
 def main():
     print("Database seeded successfully! Now ready for calculations.")
-    while True:
-        prompt = input("Enter a calculation (e.g., Add 5 and 3) or 'exit' to quit: ")
-        if prompt.lower() in ["exit", "quit"]:
-            print("Goodbye!")
-            break
 
+    # Check for command-line arguments
+    if len(sys.argv) > 1:
+        prompt = " ".join(sys.argv[1:])
+        print(f"Command-line input detected: {prompt}")
         result = call_llm(prompt)
-        if result is not None:
+        if result:
             print(f"Result: {result}")
         else:
             print("Error: Could not process your request.")
+        return
+
+    # Check for CALC_PROMPT environment variable
+    calc_prompt = os.getenv("CALC_PROMPT")
+    if calc_prompt:
+        print(f"Using CALC_PROMPT: {calc_prompt}")
+        result = call_llm(calc_prompt)
+        if result:
+            print(f"Result: {result}")
+        return
+
+    # Interactive Mode (Only if -it is used)
+    if sys.stdin.isatty():
+        try:
+            while True:
+                prompt = input("Enter a calculation (e.g., Add 5 and 3) or 'exit': ")
+                if prompt.lower() in ["exit", "quit"]:
+                    print("Goodbye!")
+                    break
+                result = call_llm(prompt)
+                if result:
+                    print(f"Result: {result}")
+        except EOFError:
+            print("\nNo input provided. Exiting.")
+    else:
+        print("No input provided. Use command-line arguments or the CALC_PROMPT environment variable.")
+        print("Example: docker run calcidb \"Add 5 and 3\"")
+        print("Or: docker run -e CALC_PROMPT=\"Add 5 and 3\" calcidb")
 
 if __name__ == "__main__":
     main()

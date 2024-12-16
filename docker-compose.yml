@@ -1,0 +1,9 @@
+services:
+  calcidb:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+    environment:
+      - API_KEY=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  # Set your API key here
