@@ -3,7 +3,8 @@ import sys
 import json
 import requests
 from dotenv import load_dotenv
-from models import User, Session
+from models import User, Session, Base
+from sqlalchemy import Column, Integer, String
 from faker import Faker
 
 # Load environment variables
@@ -19,7 +20,20 @@ if not API_KEY:
 session = Session()
 fake = Faker()
 
-# Seed the database
+# Define CalculationHistory model
+class CalculationHistory(Base):
+    __tablename__ = 'calculation_history'
+    id = Column(Integer, primary_key=True)
+    calculation = Column(String, nullable=False)
+    result = Column(String, nullable=False)
+
+    def __repr__(self):
+        return f"<CalculationHistory(id={self.id}, calculation='{self.calculation}', result='{self.result}')>"
+
+# Create tables if not already created
+Base.metadata.create_all(session.bind)
+
+# Seed the database with users
 for _ in range(5):
     user = User(
         first_name=fake.first_name(),
@@ -45,7 +59,7 @@ def call_llm(prompt):
         "Content-Type": "application/json"
     }
     payload = {
-        "model": "llama3-8b-8192",  # Example model name
+        "model": "llama3-8b-8192",
         "messages": [{"role": "user", "content": prompt}],
         "functions": [
             {"name": "add", "parameters": {"a": "number", "b": "number"}},
@@ -60,7 +74,6 @@ def call_llm(prompt):
         response.raise_for_status()
         data = response.json()
 
-        # Extract function and arguments
         function_calls = data['choices'][0]['message'].get('tool_calls', None)
         if function_calls:
             try:
@@ -68,10 +81,9 @@ def call_llm(prompt):
                 arguments = json.loads(function_calls[0]['function']['arguments'])
                 a = float(arguments['a'])
                 b = float(arguments['b'])
-            except (KeyError, json.JSONDecodeError, ValueError, TypeError):
+            except (ValueError, TypeError, KeyError, json.JSONDecodeError):
                 return "Error: Invalid arguments or function name in API response."
 
-            # Execute the corresponding local function
             if function_name == "add":
                 return f"The sum of {a} and {b} is {add(a, b)}."
             elif function_name == "subtract":
@@ -81,54 +93,71 @@ def call_llm(prompt):
             elif function_name == "divide":
                 return f"The result of dividing {a} by {b} is {divide(a, b)}."
             else:
-                return f"Error: Function {function_name} not implemented."
+                return "Error: Function not implemented."
 
         return "Error: No valid function call in response."
-
     except requests.exceptions.RequestException as e:
         return f"Error calling Groq API: {e}"
+
+# Save calculation history to the database
+def save_history(calculation, result):
+    with Session() as session:
+        history_entry = CalculationHistory(calculation=calculation, result=result)
+        session.add(history_entry)
+        session.commit()
+    print("Calculation saved to history.")
+
+# Display calculation history from the database
+def display_history():
+    with Session() as session:
+        history = session.query(CalculationHistory).all()
+        if not history:
+            print("No calculation history available.")
+        else:
+            print("Calculation History:")
+            for entry in history:
+                print(f"{entry.id}. {entry.calculation} -> {entry.result}")
 
 # Main function
 def main():
     print("Database seeded successfully! Now ready for calculations.")
 
-    # Check for command-line arguments
     if len(sys.argv) > 1:
         prompt = " ".join(sys.argv[1:])
         print(f"Command-line input detected: {prompt}")
         result = call_llm(prompt)
         if result:
             print(f"Result: {result}")
-        else:
-            print("Error: Could not process your request.")
+            save_history(prompt, result)
         return
 
-    # Check for CALC_PROMPT environment variable
     calc_prompt = os.getenv("CALC_PROMPT")
     if calc_prompt:
         print(f"Using CALC_PROMPT: {calc_prompt}")
         result = call_llm(calc_prompt)
         if result:
             print(f"Result: {result}")
+            save_history(calc_prompt, result)
         return
 
-    # Interactive Mode (Only if -it is used)
     if sys.stdin.isatty():
         try:
             while True:
-                prompt = input("Enter a calculation (e.g., Add 5 and 3) or 'exit': ")
-                if prompt.lower() in ["exit", "quit"]:
+                prompt = input("Enter a calculation (e.g., Add 5 and 3), 'history', or 'exit': ")
+                if prompt.lower() == "exit":
                     print("Goodbye!")
                     break
-                result = call_llm(prompt)
-                if result:
-                    print(f"Result: {result}")
+                elif prompt.lower() == "history":
+                    display_history()
+                else:
+                    result = call_llm(prompt)
+                    if result:
+                        print(f"Result: {result}")
+                        save_history(prompt, result)
         except EOFError:
             print("\nNo input provided. Exiting.")
     else:
         print("No input provided. Use command-line arguments or the CALC_PROMPT environment variable.")
-        print("Example: docker run calcidb \"Add 5 and 3\"")
-        print("Or: docker run -e CALC_PROMPT=\"Add 5 and 3\" calcidb")
 
 if __name__ == "__main__":
     main()
