@@ -1,11 +1,13 @@
 import os
 import sys
 import json
+import random
 import requests
 from dotenv import load_dotenv
 from models import User, Session, Base
 from sqlalchemy import Column, Integer, String
 from faker import Faker
+from word2number import w2n
 
 # Load environment variables
 load_dotenv()
@@ -52,53 +54,6 @@ def subtract(a, b): return a - b
 def multiply(a, b): return a * b
 def divide(a, b): return a / b if b != 0 else "Error: Division by zero"
 
-# Call Groq API for LLM function calling
-def call_llm(prompt):
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "llama3-8b-8192",
-        "messages": [{"role": "user", "content": prompt}],
-        "functions": [
-            {"name": "add", "parameters": {"a": "number", "b": "number"}},
-            {"name": "subtract", "parameters": {"a": "number", "b": "number"}},
-            {"name": "multiply", "parameters": {"a": "number", "b": "number"}},
-            {"name": "divide", "parameters": {"a": "number", "b": "number"}}
-        ]
-    }
-
-    try:
-        response = requests.post(API_ENDPOINT, headers=headers, json=payload)
-        response.raise_for_status()
-        data = response.json()
-
-        function_calls = data['choices'][0]['message'].get('tool_calls', None)
-        if function_calls:
-            try:
-                function_name = function_calls[0]['function']['name']
-                arguments = json.loads(function_calls[0]['function']['arguments'])
-                a = float(arguments['a'])
-                b = float(arguments['b'])
-            except (ValueError, TypeError, KeyError, json.JSONDecodeError):
-                return "Error: Invalid arguments or function name in API response."
-
-            if function_name == "add":
-                return f"The sum of {a} and {b} is {add(a, b)}."
-            elif function_name == "subtract":
-                return f"The difference between {a} and {b} is {subtract(a, b)}."
-            elif function_name == "multiply":
-                return f"The product of {a} and {b} is {multiply(a, b)}."
-            elif function_name == "divide":
-                return f"The result of dividing {a} by {b} is {divide(a, b)}."
-            else:
-                return "Error: Function not implemented."
-
-        return "Error: No valid function call in response."
-    except requests.exceptions.RequestException as e:
-        return f"Error calling Groq API: {e}"
-
 # Save calculation history to the database
 def save_history(calculation, result):
     with Session() as session:
@@ -118,46 +73,119 @@ def display_history():
             for entry in history:
                 print(f"{entry.id}. {entry.calculation} -> {entry.result}")
 
+# Fetch user details by email
+def fetch_user_by_email(email):
+    user = session.query(User).filter(User.email == email).first()
+    if user:
+        return {"first_name": user.first_name, "last_name": user.last_name, "email": user.email, "username": user.username}
+    return {"error": "User not found."}
+
+# Preprocess input to handle word-to-number conversion
+def preprocess_input(prompt):
+    words = prompt.split()
+    for i, word in enumerate(words):
+        try:
+            words[i] = str(w2n.word_to_num(word))
+        except ValueError:
+            pass  # Leave unchanged if not convertible
+    return " ".join(words)
+
+# Fallback for basic calculations if LLM fails
+def fallback_calculation(prompt):
+    try:
+        processed_prompt = preprocess_input(prompt)
+        if "add" in processed_prompt:
+            nums = [float(n) for n in processed_prompt.split() if n.isdigit()]
+            return f"The sum of {nums[0]} and {nums[1]} is {add(nums[0], nums[1])}."
+        elif "subtract" in processed_prompt:
+            nums = [float(n) for n in processed_prompt.split() if n.isdigit()]
+            return f"The difference between {nums[0]} and {nums[1]} is {subtract(nums[0], nums[1])}."
+        elif "multiply" in processed_prompt:
+            nums = [float(n) for n in processed_prompt.split() if n.isdigit()]
+            return f"The product of {nums[0]} and {nums[1]} is {multiply(nums[0], nums[1])}."
+        elif "divide" in processed_prompt:
+            nums = [float(n) for n in processed_prompt.split() if n.isdigit()]
+            return f"The result of dividing {nums[0]} by {nums[1]} is {divide(nums[0], nums[1])}."
+        return "Fallback: Unable to process the calculation."
+    except Exception as e:
+        return f"Fallback Error: {e}"
+
+# Call Groq API for LLM function calling
+def call_llm(prompt):
+    # Preprocess the input to handle word-to-number conversion
+    processed_prompt = preprocess_input(prompt)
+
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "llama3-8b-8192",
+        "messages": [{"role": "user", "content": processed_prompt}],
+        "functions": [
+            {
+                "name": "add",
+                "description": "Adds two numbers together.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "a": {"type": "number", "description": "The first number to add."},
+                        "b": {"type": "number", "description": "The second number to add."}
+                    },
+                    "required": ["a", "b"]
+                }
+            },
+            # Add other functions like subtract, multiply, divide...
+        ]
+    }
+
+    try:
+        response = requests.post(API_ENDPOINT, headers=headers, json=payload)
+        response.raise_for_status()
+        data = response.json()
+
+        # Extract function call data
+        function_calls = data.get('choices', [{}])[0].get('message', {}).get('tool_calls', [])
+        if function_calls:
+            function_name = function_calls[0]['function']['name']
+            arguments = json.loads(function_calls[0]['function']['arguments'])
+            if function_name == "add":
+                return f"The sum of {arguments['a']} and {arguments['b']} is {add(arguments['a'], arguments['b'])}."
+        return fallback_calculation(prompt)  # Fallback to local calculation
+    except requests.exceptions.RequestException as e:
+        return f"Error calling LLM API: {e}"
+
+# Random joke feature
+def random_joke():
+    jokes = [
+        "Why was the math book sad? It had too many problems!",
+        "Parallel lines have so much in common. It's a shame they'll never meet."
+    ]
+    return random.choice(jokes)
+
 # Main function
 def main():
-    print("Database seeded successfully! Now ready for calculations.")
+    print("Welcome to the Calculator App!")
+    print("Type 'add', 'subtract', 'multiply', or 'divide' followed by two numbers.")
+    print("Or type 'user <email>' to fetch user details, 'history' to view calculations, 'joke' for a joke, or 'exit' to quit.")
 
-    if len(sys.argv) > 1:
-        prompt = " ".join(sys.argv[1:])
-        print(f"Command-line input detected: {prompt}")
-        result = call_llm(prompt)
-        if result:
-            print(f"Result: {result}")
-            save_history(prompt, result)
-        return
-
-    calc_prompt = os.getenv("CALC_PROMPT")
-    if calc_prompt:
-        print(f"Using CALC_PROMPT: {calc_prompt}")
-        result = call_llm(calc_prompt)
-        if result:
-            print(f"Result: {result}")
-            save_history(calc_prompt, result)
-        return
-
-    if sys.stdin.isatty():
-        try:
-            while True:
-                prompt = input("Enter a calculation (e.g., Add 5 and 3), 'history', or 'exit': ")
-                if prompt.lower() == "exit":
-                    print("Goodbye!")
-                    break
-                elif prompt.lower() == "history":
-                    display_history()
-                else:
-                    result = call_llm(prompt)
-                    if result:
-                        print(f"Result: {result}")
-                        save_history(prompt, result)
-        except EOFError:
-            print("\nNo input provided. Exiting.")
-    else:
-        print("No input provided. Use command-line arguments or the CALC_PROMPT environment variable.")
+    while True:
+        command = input("> ").strip()
+        if command.lower() == "exit":
+            print("Goodbye!")
+            break
+        elif command.lower() == "history":
+            display_history()
+        elif command.startswith("user"):
+            _, email = command.split(maxsplit=1)
+            result = fetch_user_by_email(email)
+            print(result)
+        elif command.lower() == "joke":
+            print(random_joke())
+        else:
+            result = call_llm(command)
+            print(result)
+            save_history(command, result)
 
 if __name__ == "__main__":
     main()
