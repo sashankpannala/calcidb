@@ -40,7 +40,10 @@ def test_random_joke():
     joke = random_joke()
     assert joke in [
         "Why was the math book sad? It had too many problems!",
-        "Parallel lines have so much in common. It's a shame they'll never meet."
+        "Parallel lines have so much in common. It's a shame they'll never meet.",
+        "Why don't skeletons fight each other? They don't have the guts!",
+        "What do you call fake spaghetti? An impasta!",
+        "Why cant you hear a pterodactyl go to the bathroom? Because the p is silent!"
     ]
 
 # Skip the test for fetch_user_by_email that failed
